@@ -61,19 +61,21 @@ class JWTFactoryV2 implements TokenFactoryInterfaceV2
 
     public function parseToken(string $token): TokenStruct
     {
+        $exception = null;
+        
         try {
             /** @var UnencryptedToken $jwtToken */
             $jwtToken = $this->configuration->parser()->parse($token);
         } catch (\Throwable $e) {
-            throw PaymentException::invalidToken($token, $e);
+            $exception = PaymentException::invalidToken($token, $e);
         }
 
         if (!$this->configuration->validator()->validate($jwtToken, ...$this->configuration->validationConstraints())) {
-            throw PaymentException::invalidToken($token);
+            $exception = PaymentException::invalidToken($token);
         }
 
         if (!$this->has($token)) {
-            throw PaymentException::tokenInvalidated($token);
+            $exception = PaymentException::tokenInvalidated($token);
         }
 
         $errorUrl = $jwtToken->claims()->get('eul');
@@ -81,7 +83,7 @@ class JWTFactoryV2 implements TokenFactoryInterfaceV2
         /** @var \DateTimeImmutable $expires */
         $expires = $jwtToken->claims()->get('exp');
 
-        return new TokenStruct(
+        $tokenStruct = new TokenStruct(
             $jwtToken->claims()->get('jti'),
             $token,
             $jwtToken->claims()->get('pmi'),
@@ -90,6 +92,10 @@ class JWTFactoryV2 implements TokenFactoryInterfaceV2
             $expires->getTimestamp(),
             $errorUrl
         );
+
+        $tokenStruct->setException($exception);
+
+        return $tokenStruct;
     }
 
     public function invalidateToken(string $token): bool
